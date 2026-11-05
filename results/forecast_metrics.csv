@@ -1,0 +1,4 @@
+model,MAE ($/hour),MAPE (%),Improvement over linear (%)
+Linear projection,386.57,1.26,0.0
+Seasonal naive,285.99,0.92,26.85
+XGBoost,159.64,0.51,59.17

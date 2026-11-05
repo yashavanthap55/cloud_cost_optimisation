@@ -1,0 +1,4 @@
+item,value
+model,XGBoost
+band_dollars_per_hour,904.12
+test_hours_inside_band,1.0
