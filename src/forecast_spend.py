@@ -53,7 +53,7 @@ def main():
         "XGBoost": metrics(test.spend, xgb),
     }).T
     table["Improvement over linear (%)"] = (1 - table["MAPE (%)"] / table.loc["Linear projection", "MAPE (%)"]) * 100
-    table.round(2).to_csv(RESULTS / "forecast_metrics.csv", index_label="model")
+    table.round(2).to_csv(RESULTS / "forecast_metrics.csv", index_label="Model")
     print(table.round(2).to_string())
 
     # The dashboard shows the best model on calibration days, so the test week plays no part in choosing.

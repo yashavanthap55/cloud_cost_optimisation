@@ -3,3 +3,4 @@ pyarrow
 scikit-learn
 xgboost
 streamlit
+matplotlib

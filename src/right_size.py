@@ -16,6 +16,7 @@ RESULTS = ROOT / "results"
 LADDER = [2, 4, 8, 16, 24]
 TARGET_USE = 0.70     # keep use at or below 70% of the new size
 COVERAGE = 0.90
+BANDS = [-1, 20, 40, 70, 101]   # bands of predicted CPU percent, each with its own margin
 HOURS_PER_MONTH = 730
 CATEGORY = {"Interactive": 0, "Delay-insensitive": 1, "Unknown": 2}
 FEATURES = ["mean", "median", "p95", "peak", "std", "share_above_80", "weekend_weekday",
@@ -89,6 +90,13 @@ def conformal_margin(actual, predicted, coverage=COVERAGE):
     return float(errors[rank])
 
 
+def band_margins(actual, predicted):
+    """Quieter VMs have smaller errors, so one margin per band of predicted use is tighter
+    where downsizing is possible, and still holds within each band."""
+    bands = pd.cut(predicted, BANDS, labels=False)
+    return {int(b): max(0.0, conformal_margin(actual[bands == b], predicted[bands == b])) for b in np.unique(bands)}
+
+
 def fit_and_score(train_usage, test_usage, raw, vms, split, weekend, busy_hours):
     """Train on one version of the inputs, then return test predictions and summary numbers."""
     train_x = build_features(train_usage, 1, vms, weekend, busy_hours).join(demand(raw, 15, 21), how="inner")
@@ -99,17 +107,21 @@ def fit_and_score(train_usage, test_usage, raw, vms, split, weekend, busy_hours)
 
     model = XGBRegressor(n_estimators=300, max_depth=4, learning_rate=0.05, subsample=0.8, random_state=42)
     model.fit(fit[FEATURES], fit.actual)
-    margin = conformal_margin(calibrate.actual, model.predict(calibrate[FEATURES]))
+    calibrated = model.predict(calibrate[FEATURES]).clip(0, 100)
+    single = conformal_margin(calibrate.actual, calibrated)
+    margins = band_margins(calibrate.actual.to_numpy(), calibrated)
     test["predicted"] = model.predict(test[FEATURES]).clip(0, 100)
-    test["upper"] = (test.predicted + margin).clip(0, 100)
+    test["upper_single"] = (test.predicted + single).clip(0, 100)
+    test["upper"] = (test.predicted + pd.cut(test.predicted, BANDS, labels=False).map(margins).fillna(single)).clip(0, 100)
     scores = {
-        "calibration MAE": float(np.abs(calibrate.actual - model.predict(calibrate[FEATURES])).mean()),
+        "calibration MAE": float(np.abs(calibrate.actual - calibrated).mean()),
         "test MAE": float(np.abs(test.actual - test.predicted).mean()),
-        "margin (CPU points)": margin,
+        "single margin (CPU points)": single,
+        "test coverage, single margin": float((test.actual <= test.upper_single).mean()),
         "test coverage": float((test.actual <= test.upper).mean()),
         "test VMs": len(test),
     }
-    return test, scores
+    return test, scores, margins
 
 
 def recommend(test, prices):
@@ -143,14 +155,20 @@ def main():
                            pd.read_parquet(DATA / "usage_clean_test.parquet")),
     }
     results = {name: fit_and_score(tr, te, raw, vms, split, weekend, busy_hours) for name, (tr, te) in versions.items()}
-    comparison = pd.DataFrame({name: scores for name, (_, scores) in results.items()}).T
+    comparison = pd.DataFrame({name: r[1] for name, r in results.items()}).T
     comparison.round(3).to_csv(RESULTS / "raw_vs_cleaned.csv", index_label="inputs")
     print(comparison.round(3).to_string())
 
     # Chosen on calibration VMs, so the test week plays no part in the choice.
     chosen = comparison["calibration MAE"].idxmin()
-    test = results[chosen][0]
+    test, _, margins = results[chosen]
+    labels = [f"{low + (low < 0)}-{min(high, 100)}%" for low, high in zip(BANDS, BANDS[1:])]
+    table = pd.DataFrame({"predicted use": labels, "margin (CPU points)": [margins.get(i) for i in range(len(labels))]})
+    table["test VMs"] = pd.cut(test.predicted, BANDS, labels=False).value_counts().reindex(range(len(labels))).values
+    table["test coverage"] = (test.actual <= test.upper).groupby(pd.cut(test.predicted, BANDS, labels=False)).mean().reindex(range(len(labels))).values
+    table.round(3).to_csv(RESULTS / "margins.csv", index=False)
     print(f"using {chosen}")
+    print(table.round(3).to_string(index=False))
 
     recent = days(raw, 8, 21)
     test["share_near_100"] = recent.assign(near=recent.max_cpu >= 95).groupby("vm_id").near.mean().reindex(test.index)
@@ -158,7 +176,7 @@ def main():
     rows["upper_cores"] = rows.upper / 100 * rows.cores
     rows["peak_cores"] = rows.peak / 100 * rows.cores
     rows["inputs_used"] = chosen
-    keep = ["category", "cores", "memory", "p95", "peak", "peak_cores", "predicted", "upper", "upper_cores", "actual",
+    keep = ["category", "cores", "memory", "p95", "peak", "peak_cores", "predicted", "upper_single", "upper", "upper_cores", "actual",
             "new_cores", "monthly_saving", "recommended", "risk", "reasons", "may_be_too_small", "inputs_used"]
     rows[keep].round(4).to_csv(RESULTS / "vm_predictions.csv", index_label="vm_id")
     print(f"{rows.recommended.sum()} of {len(rows)} test VMs get a recommendation, "

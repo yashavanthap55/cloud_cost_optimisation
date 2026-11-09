@@ -2,7 +2,7 @@
 
 Forecasts cloud spend and recommends smaller VMs using a real Azure VM trace. Each recommendation has a safety margin and a plain-language explanation, and risky ones wait for a person's approval. Nothing changes real cloud resources.
 
-See [REPORT.md](REPORT.md) for results, [DEMO.md](DEMO.md) for the demo script, and [PROJECT_PLAN.md](PROJECT_PLAN.md) for the original plan.
+See [docs/Project_Explained.pdf](docs/Project_Explained.pdf) for the full explanation, [docs/Project_Presentation.pptx](docs/Project_Presentation.pptx) for the slides, [DEMO.md](DEMO.md) for the demo script, [paper/](paper/) for the IEEE paper, and [PROJECT_PLAN.md](PROJECT_PLAN.md) for the original plan.
 
 ## Show the dashboard
 
@@ -17,7 +17,7 @@ streamlit run app.py
 
 ## Rerun everything
 
-Run these in order. `get_data.py` is the slow one: it streams about 40 GB and can be stopped and restarted without losing finished files.
+Run these in order. `get_data.py` is the slow one: it streams up to about 40 GB and can be stopped and restarted without losing finished files. Our results use the first 100 of 184 files, which covers the whole month evenly.
 
 | Script | Plan step | What it does |
 |---|---|---|

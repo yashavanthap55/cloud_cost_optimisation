@@ -1,0 +1,6 @@
+Policy,Savings (% of spend),VMs downsized (%),Overload (% of all VM-hours),Overload (% of downsized VM-hours)
+No change,0.0,0.0,0.0,0.0
+Simple rule (last 14 days),8.2,8.38,0.07,0.87
+ML only,8.51,8.64,0.08,0.98
+ML + single margin,3.24,3.2,0.03,0.99
+ML + margin by usage band,4.33,4.07,0.04,0.94

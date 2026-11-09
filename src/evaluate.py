@@ -42,10 +42,11 @@ def main():
         "No change": rows.cores,
         "Simple rule (last 14 days)": sized(recent_p95),
         "ML only": sized(rows.predicted),
-        "ML + margin": sized(rows.upper),
+        "ML + single margin": sized(rows.upper_single),
+        "ML + margin by usage band": sized(rows.upper),
     }
     table = pd.DataFrame({name: replay(rows, week, new, prices) for name, new in policies.items()}).T
-    table.round(2).to_csv(RESULTS / "policy_table.csv", index_label="policy")
+    table.round(2).to_csv(RESULTS / "policy_table.csv", index_label="Policy")
     print(table.round(2).to_string())
 
     # Do the risk levels mean anything? Check them on what actually happened in the test week.
@@ -58,12 +59,12 @@ def main():
         by_risk[risk] = {
             "Recommendations": len(group),
             "Saving ($/month)": group.monthly_saving.sum(),
-            "Share of test spend saved (%)": (group.cores.map(prices) - group.new_cores.map(prices)).sum()
+            "Saved (% of spend)": (group.cores.map(prices) - group.new_cores.map(prices)).sum()
             / rows.cores.map(prices).sum() * 100,
-            "Overload (% of VM-hours)": (hours.max_cpu / 100 * cores > new).mean() * 100,
+            "Overload (%)": (hours.max_cpu / 100 * cores > new).mean() * 100,
         }
     risk_table = pd.DataFrame(by_risk).T
-    risk_table.round(2).to_csv(RESULTS / "risk_table.csv", index_label="risk")
+    risk_table.round(2).to_csv(RESULTS / "risk_table.csv", index_label="Risk")
     print(risk_table.round(2).to_string())
 
 
